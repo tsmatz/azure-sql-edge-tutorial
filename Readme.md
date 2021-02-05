@@ -1,7 +1,7 @@
 # Azure SQL Edge Tutorial Hands-On
 
 In this repository, you can learn how you can use Azure SQL Edge with typical scenarios step-by-step.<br>
-Please follow this readme descriptions.
+Please follow this readme description.
 
 ## Preparation - Provision IoT Hub and Device ##
 
@@ -16,7 +16,7 @@ In [Azure Portal](https://portal.azure.com/), create "Azure IoT Edge on Ubuntu" 
 
 ![Create IoT Edge device](images/create_edge_on_ubuntu.png?raw=true)
 
-In IoT Hub resource, click "IoT Edge" menu on left-side navigation, click "Add an IoT Edge device", and proceed to register new IoT Edge device entry.
+In the generated IoT Hub resource page in Azure Portal, click "IoT Edge" menu on left-side navigation, click "Add an IoT Edge device" button, and proceed to register new IoT Edge device entry.
 
 ![Register IoT Edge device in IoT Hub](images/register_edge_device.png?raw=true)
 
@@ -25,7 +25,7 @@ Please copy this connection string.
 
 ![Get device connection string](images/get_connection_string.png?raw=true)
 
-In order to connect to IoT Hub from Ubuntu (Edge device), login to Ubuntu, open ```/etc/iotedge/config.yaml```, and paste above connection string on ```device_connection_string``` section as follows. (You can use ```nano``` command for editting text on Ubuntu.)
+In order to connect to IoT Hub from your Edge device (Ubuntu VM), login to Ubuntu VM, open ```/etc/iotedge/config.yaml``` in text editor, and paste above connection string on ```device_connection_string``` section (see below) in this file. (You can use ```nano``` for editting text on Ubuntu.)
 
 ```
 ...
@@ -35,7 +35,7 @@ provisioning:
 ...
 ```
 
-> You can also use ```/etc/iotedge/configedge.sh``` to configure connection string.
+> You can also use ```/etc/iotedge/configedge.sh``` to configure connection string in IoT Edge runtime.
 
 Restart IoT Edge runtime as follows.
 
@@ -45,46 +45,47 @@ sudo systemctl restart iotedge
 
 > You can see whether Edge runtime is successfully running by ```sudo systemctl status iotedge``` command.
 
-In Azure Portal, go to IoT Edge pane in IoT Hub resource, and see whether only one system module (which is Edge agent module) is connected from this device.
+In Azure Portal, go to IoT Edge pane in IoT Hub resource page, and see whether only one system module (which is Edge agent module) is connected from your Edge device (Ubuntu).
 
 ![Edge status](images/edge_status01.png?raw=true)
 
+> Please ignore 417 error status. (This is because no deployment is specified yet.)
+
 ## Preparation - Install Module for Data Generation ##
 
-In Azure Portal, create container register resource.
+Next, we provision data generator module on Edge device. This custom module generates and sends streaming events every seconds into edge hub.
+
+In Azure Portal, create a container registery resource, in which we'll publish our data generator image later.
 
 ![Create container registry](images/create_acr.png?raw=true)
 
-After creation, click "Access keys" in the left navigation on your Azure container registry (ACR) resource and copy server name, user name, and password.
+After the container registry is created, click "Access keys" in the left navigation on your Azure container registry (ACR) resource and copy server name, user name, and password string.
 
 ![Container registry credentials](images/acr_credential.png?raw=true)
 
-Clone (Download) this repository in your working machine.<br>
-Go to ```/data-generator-module``` directory.
+Clone (Download) this repository in your working machine, and go to ```/data-generator-module``` directory.
 
 ```
 git clone https://github.com/tsmatz/azure-sql-edge-tutorial.git
 cd azure-sql-edge-tutorial/data-generator-module
 ```
 
-Generate "Data Generator Module" image and push the image into your container registry. (Change the following ```{YOUR CONTAINER REGISTRY}.azurecr.io``` to your own container registry server.)
+Generate "Data Generator Module" image and push this image into your container registry. (Change the following ```{YOUR CONTAINER REGISTRY}.azurecr.io``` into your own server name.)
 
 ```
 # Build data generator module's image
 docker build --rm -f ./Dockerfile -t {YOUR CONTAINER REGISTRY}.azurecr.io/data-generator-module:0.0.1 ./
-# Login to ACR (Please input username and password)
+# Login to ACR (Please input username and password for ACR admin)
 docker login {YOUR CONTAINER REGISTRY}.azurecr.io
 # Push image to ACR
 docker push {YOUR CONTAINER REGISTRY}.azurecr.io/data-generator-module:0.0.1
 ```
 
-Open ```deployment/deployment1.json``` in text editor and change placeholder values to meet your own container registry. (There exist total 4 values to change.)
+Open ```deployment/deployment1.json``` in text editor and change placeholders to meet your own container registry settings. (There exist total 4 placeholders to change.)
 
-By running the following command, deploy "Data Generator Module" on your Edge device (Ubuntu).
+By running the following command, deploy "Data Generator Module" on your Edge device (Ubuntu) through IoT Hub.
 
 ```
-# Move back to root directory in this repo
-cd ..
 # Install IoT extension for using "az iot edge" command
 az extension add --name azure-iot
 # Set modules with deployment manifest to a single device
@@ -115,28 +116,26 @@ iotedge logs DataGeneratorModule
 
 ## Install and Configure SQL Edge Module (Input Stream Sample) ##
 
-In this exercise, we will install Azure SQL Edge module on your Edge device, and configure SQL Edge instance to consume the streaming events generated by Data Generator Module (```DataGeneratorModule```).
+In this exercise, we will install Azure SQL Edge module on your Edge device (Ubuntu), and configure SQL Edge instance to consume the streaming events generated by above Data Generator Module (```DataGeneratorModule```).
 
 In order for simplification, through this tutorial, we will set up database using SQL client (such as, Azure Data Studio) manually.<br>
 However, in production use, you can set up and modify database objects for all connected devices as follows :
 
 - You can specify the zipped dacpac (or bacpac) using ```MSSQL_PACKAGE``` environment's parameter in creation options of SQL Edge module. (See "[SQL Database DACPAC and BACPAC packages in SQL Edge](https://docs.microsoft.com/en-us/azure/azure-sql-edge/deploy-dacpac)" for details.)
-- Inside each devices, SQL commands will be invoked by connecting to SQL port (1433 by default) on SQL Edge module. (See "[Connect and query Azure SQL Edge](https://docs.microsoft.com/en-us/azure/azure-sql-edge/connect)" for details.)
+- Inside each devices, SQL commands will be invoked with familiar manners by connecting to SQL port (1433 by default) on SQL Edge module. (See "[Connect and query Azure SQL Edge](https://docs.microsoft.com/en-us/azure/azure-sql-edge/connect)" for details.)
 
 Now let's start to install SQL Edge on device (Ubuntu).
 
-Open ```deployment/deployment2.json``` in text editor and change placeholder values to meet your own container registry. (There exist total 4 values to change.)<br>
-Then run the following command to deploy Azure SQL Edge.
+Open ```deployment/deployment2.json``` in text editor and change placeholders to meet your own container registry settings. (There exist total 4 placeholders to change.)<br>
+Then run the following command to deploy Azure SQL Edge on your Edge device (Ubuntu).
 
 ```
 cd deployment
 az iot edge set-modules --hub-name {YOUR IOT HUB NAME} --device-id {YOUR DEVICE NAME} --content ./deployment2.json
 ```
 
-<blockquote>
-You can also deploy Azure SQL Edge using Azure Portal UI. (The wizard will generate the same deployment configuration above.)<br>
+> You can also deploy Azure SQL Edge using Azure Portal UI. (The wizard will generate the same deployment configuration above.)<br>
 ![Deploy SQL Edge](images/install_sql_edge.png?raw=true)
-</blockquote>
 
 In IoT Edge device page in IoT Hub resource on Azure Portal, see whether Azure SQL Edge module is successfully running.<br>
 Once SQL Edge is deployed on your device, the billing starts regardless of whether the SQL process is running or stopped.
