@@ -68,7 +68,7 @@ In your working client, clone (download) this repository and go to ```/data-gene
 When I assume that you are working on Ubuntu client, run the following command.
 
 ```
-git clone https://github.com/tsmatz/azure-sql-edge-tutorial.git
+git clone https://github.com/tsmatz/azure-sql-edge-tutorial
 cd azure-sql-edge-tutorial/data-generator-module
 ```
 
